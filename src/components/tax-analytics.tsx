@@ -224,7 +224,6 @@ export const TaxAnalytics: React.FC = () => {
   const [selectedMonth, setSelectedMonth] = React.useState<string | null>(null);
   const [isDrawdownModalOpen, setIsDrawdownModalOpen] = React.useState(false);
   const [customCommentary, setCustomCommentary] = React.useState<{ [key: string]: string }>({});
-  const [editingCommentary, setEditingCommentary] = React.useState<string | null>(null);
   const monthOrder = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 
   // Simplified commentary state management to prevent jumping
