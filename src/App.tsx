@@ -42,6 +42,7 @@ import { DatabaseService } from "./db/database";
 import { AuthDebug } from "./components/debug/AuthDebug";
 import { AuthModal } from "./components/auth/AuthModal";
 import { AuthCallback } from "./pages/AuthCallback";
+import { PasswordResetPage } from "./components/auth/PasswordResetPage";
 import { ToastProvider } from "./components/ToastProvider";
 // Migrated from IndexedDB to Supabase with authentication
 
@@ -404,6 +405,9 @@ function AppContent() {
                   <Switch>
                     <Route path="/auth/callback">
                       <AuthCallback />
+                    </Route>
+                    <Route path="/auth/reset-password">
+                      <PasswordResetPage />
                     </Route>
                     <Route path="/analytics">
                       <TradeAnalytics />

@@ -37,6 +37,85 @@ import { useGlobalFilter } from "../context/GlobalFilterContext";
 import { calculateTradePL } from "../utils/accountingUtils";
 // Removed Supabase import - using localStorage only
 
+// Stable Commentary Cell Component to prevent table jumping
+interface CommentaryCellProps {
+  tradeKey: string;
+  commentary: string;
+  commentaryType: string;
+  systemCommentary: string;
+  customCommentary?: string;
+  isEditing: boolean;
+  tempValue: string;
+  onEdit: (tradeKey: string, currentValue: string) => void;
+  onSave: (tradeKey: string, value: string) => void;
+  onCancel: () => void;
+  onTempValueChange: (value: string) => void;
+}
+
+const CommentaryCell = React.memo<CommentaryCellProps>(({
+  tradeKey,
+  commentary,
+  commentaryType,
+  systemCommentary,
+  customCommentary,
+  isEditing,
+  tempValue,
+  onEdit,
+  onSave,
+  onCancel,
+  onTempValueChange
+}) => {
+  const currentValue = customCommentary || systemCommentary;
+
+  if (isEditing) {
+    return (
+      <Input
+        size="sm"
+        value={tempValue}
+        onValueChange={onTempValueChange}
+        onBlur={() => onSave(tradeKey, tempValue)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            onSave(tradeKey, tempValue);
+          } else if (e.key === 'Escape') {
+            onCancel();
+          }
+        }}
+        variant="bordered"
+        autoFocus
+        placeholder="Enter commentary or leave empty..."
+        classNames={{
+          input: "text-xs",
+          inputWrapper: "h-7 min-h-unit-7"
+        }}
+      />
+    );
+  }
+
+  return (
+    <div
+      className={`text-xs px-2 py-1.5 rounded-md font-medium cursor-pointer hover:ring-1 hover:ring-primary/50 transition-all leading-tight min-h-[28px] flex items-center ${
+        customCommentary ? 'bg-primary/10 text-primary border border-primary/20' :
+        commentaryType === 'peak' ? 'bg-success/10 text-success' :
+        commentaryType === 'recovery' ? 'bg-primary/10 text-primary' :
+        commentaryType === 'mild' ? 'bg-warning/10 text-warning' :
+        commentaryType === 'moderate' ? 'bg-danger/10 text-danger' :
+        commentaryType === 'severe' ? 'bg-danger/20 text-danger' :
+        'bg-default/10 text-default-600'
+      }`}
+      onClick={() => onEdit(tradeKey, currentValue)}
+      title="Click to edit commentary"
+    >
+      <div className="max-w-[200px] break-words whitespace-normal">
+        {commentary}
+        {customCommentary && (
+          <Icon icon="lucide:edit-3" className="w-3 h-3 ml-1 inline opacity-60" />
+        )}
+      </div>
+    </div>
+  );
+});
+
 // Editable Text Component
 const EditableText: React.FC<{
   value: string | number;
@@ -148,58 +227,31 @@ export const TaxAnalytics: React.FC = () => {
   const [editingCommentary, setEditingCommentary] = React.useState<string | null>(null);
   const monthOrder = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 
+  // Simplified commentary state management to prevent jumping
+  const [editingCommentary, setEditingCommentary] = React.useState<string | null>(null);
+  const [tempCommentaryValue, setTempCommentaryValue] = React.useState<string>('');
+
   // Function to handle commentary editing
-  const handleCommentaryEdit = (tradeKey: string) => {
+  const handleCommentaryEdit = React.useCallback((tradeKey: string, currentValue: string) => {
     setEditingCommentary(tradeKey);
-  };
+    setTempCommentaryValue(currentValue);
+  }, []);
 
   // Function to save commentary updates
-  const handleCommentarySave = (tradeKey: string, newCommentary: string) => {
+  const handleCommentarySave = React.useCallback((tradeKey: string, newCommentary: string) => {
     setCustomCommentary(prev => ({
       ...prev,
-      [tradeKey]: newCommentary.trim() // Trim whitespace
+      [tradeKey]: newCommentary.trim()
     }));
     setEditingCommentary(null);
-  };
+    setTempCommentaryValue('');
+  }, []);
 
-  // Local state for input values to prevent lag
-  const [inputValues, setInputValues] = React.useState<{ [key: string]: string }>({});
-
-  // Debounced function to update commentary
-  const debouncedUpdateCommentary = React.useCallback(
-    React.useMemo(() => {
-      const timeouts: { [key: string]: NodeJS.Timeout } = {};
-
-      return (tradeKey: string, value: string) => {
-        // Clear existing timeout for this trade
-        if (timeouts[tradeKey]) {
-          clearTimeout(timeouts[tradeKey]);
-        }
-
-        // Set new timeout
-        timeouts[tradeKey] = setTimeout(() => {
-          setCustomCommentary(prev => ({
-            ...prev,
-            [tradeKey]: value
-          }));
-          delete timeouts[tradeKey];
-        }, 150); // 150ms debounce
-      };
-    }, []),
-    []
-  );
-
-  // Function to handle commentary input changes (immediate for UI, debounced for state)
-  const handleCommentaryChange = React.useCallback((tradeKey: string, value: string) => {
-    // Update input value immediately for responsive UI
-    setInputValues(prev => ({
-      ...prev,
-      [tradeKey]: value
-    }));
-
-    // Debounce the actual state update
-    debouncedUpdateCommentary(tradeKey, value);
-  }, [debouncedUpdateCommentary]);
+  // Function to cancel commentary editing
+  const handleCommentaryCancel = React.useCallback(() => {
+    setEditingCommentary(null);
+    setTempCommentaryValue('');
+  }, []);
   const [taxesByMonth, setTaxesByMonth] = React.useState<{ [month: string]: number }>({});
 
   // Function to load tax data for the selected year
@@ -913,105 +965,19 @@ export const TaxAnalytics: React.FC = () => {
                             </span>
                           </TableCell>
                           <TableCell>
-                            {editingCommentary === item.tradeKey ? (
-                              <Input
-                                size="sm"
-                                value={
-                                  inputValues[item.tradeKey] !== undefined
-                                    ? inputValues[item.tradeKey]
-                                    : customCommentary[item.tradeKey] !== undefined
-                                      ? customCommentary[item.tradeKey]
-                                      : item.systemCommentary
-                                }
-                                onValueChange={(value) => handleCommentaryChange(item.tradeKey, value)}
-                                onBlur={() => {
-                                  const currentValue = inputValues[item.tradeKey] !== undefined
-                                    ? inputValues[item.tradeKey]
-                                    : customCommentary[item.tradeKey];
-
-                                  if (currentValue !== undefined) {
-                                    handleCommentarySave(item.tradeKey, currentValue);
-                                  }
-
-                                  // Clear input value
-                                  setInputValues(prev => {
-                                    const newState = { ...prev };
-                                    delete newState[item.tradeKey];
-                                    return newState;
-                                  });
-                                  setEditingCommentary(null);
-                                }}
-                                onKeyDown={(e) => {
-                                  if (e.key === 'Enter') {
-                                    const currentValue = inputValues[item.tradeKey] !== undefined
-                                      ? inputValues[item.tradeKey]
-                                      : customCommentary[item.tradeKey];
-
-                                    if (currentValue !== undefined) {
-                                      handleCommentarySave(item.tradeKey, currentValue);
-                                    }
-
-                                    // Clear input value
-                                    setInputValues(prev => {
-                                      const newState = { ...prev };
-                                      delete newState[item.tradeKey];
-                                      return newState;
-                                    });
-                                    setEditingCommentary(null);
-                                  }
-                                  if (e.key === 'Escape') {
-                                    // Clear input value and revert
-                                    setInputValues(prev => {
-                                      const newState = { ...prev };
-                                      delete newState[item.tradeKey];
-                                      return newState;
-                                    });
-                                    setEditingCommentary(null);
-                                  }
-                                }}
-                                variant="bordered"
-                                autoFocus
-                                placeholder="Enter commentary or leave empty..."
-                                classNames={{
-                                  input: "text-xs",
-                                  inputWrapper: "h-7 min-h-unit-7"
-                                }}
-                                onFocus={(e) => {
-                                  // Initialize input value and select text
-                                  const initialValue = customCommentary[item.tradeKey] !== undefined
-                                    ? customCommentary[item.tradeKey]
-                                    : item.systemCommentary;
-
-                                  setInputValues(prev => ({
-                                    ...prev,
-                                    [item.tradeKey]: initialValue
-                                  }));
-
-                                  setTimeout(() => e.target.select(), 0);
-                                }}
-                              />
-                            ) : (
-                              <div
-                                className={`text-xs px-2 py-1.5 rounded-md font-medium cursor-pointer hover:ring-1 hover:ring-primary/50 transition-all leading-tight ${
-                                  customCommentary[item.tradeKey] ? 'bg-primary/10 text-primary border border-primary/20' :
-                                  item.commentaryType === 'peak' ? 'bg-success/10 text-success' :
-                                  item.commentaryType === 'recovery' ? 'bg-primary/10 text-primary' :
-                                  item.commentaryType === 'mild' ? 'bg-warning/10 text-warning' :
-                                  item.commentaryType === 'moderate' ? 'bg-danger/10 text-danger' :
-                                  item.commentaryType === 'severe' ? 'bg-danger/20 text-danger' :
-                                  'bg-default/10 text-default-600'
-                                }`}
-                                onClick={() => handleCommentaryEdit(item.tradeKey)}
-                                title="Click to edit commentary"
-                              >
-                                <div className="max-w-[200px] break-words whitespace-normal">
-                                  {item.commentary}
-                                  {customCommentary[item.tradeKey] && (
-                                    <Icon icon="lucide:edit-3" className="w-3 h-3 ml-1 inline opacity-60" />
-                                  )}
-                                </div>
-                              </div>
-                            )}
+                            <CommentaryCell
+                              tradeKey={item.tradeKey}
+                              commentary={item.commentary}
+                              commentaryType={item.commentaryType}
+                              systemCommentary={item.systemCommentary}
+                              customCommentary={customCommentary[item.tradeKey]}
+                              isEditing={editingCommentary === item.tradeKey}
+                              tempValue={tempCommentaryValue}
+                              onEdit={handleCommentaryEdit}
+                              onSave={handleCommentarySave}
+                              onCancel={handleCommentaryCancel}
+                              onTempValueChange={setTempCommentaryValue}
+                            />
                           </TableCell>
                         </TableRow>
                       )}

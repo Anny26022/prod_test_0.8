@@ -123,7 +123,7 @@ export class AuthService {
   static async resetPassword(email: string) {
     try {
       const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/reset-password`
+        redirectTo: `${window.location.origin}/auth/reset-password`
       })
 
       if (error) {
@@ -182,7 +182,7 @@ export class AuthService {
     try {
       // Try to initiate password reset - this will tell us if user exists
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/reset-password`
+        redirectTo: `${window.location.origin}/auth/reset-password`
       })
 
       // If no error, user exists
